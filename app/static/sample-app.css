@@ -1,0 +1,17 @@
+.jumbotron {
+  margin-top: 1em;  // add a little space
+}
+
+blockquote
+{
+  font-style: normal;
+  font-size: 14px;
+  margin-left: 32px;
+  border-left: 4px solid #CCC;
+  padding-left: 8px;
+}
+
+img {
+   padding:1px;
+   border:1px solid #021a40;
+}

@@ -1,0 +1,12 @@
+flask-appconfig
+flask-bootstrap
+flask-nav
+flask-debug
+flask-wtf
+flask-uploads
+email_validator
+sklearn
+numpy==1.16.2
+pandas==0.24.2
+nltk
+seaborn

@@ -1,0 +1,19 @@
+{%- extends "base.html" %}
+{% import "bootstrap/utils.html" as utils %}
+
+{% block title %}File List{% endblock title %}
+
+{% block content %}
+<div class="container">
+<h2>Files</h2>
+<form action="{{ url_for('.summarize') }}" method=POST enctype=multipart/form-data>
+  <select name=file_to_process>
+  {% for file in files %}
+      <option value="{{ file }}">{{ file }}</option>
+  {% endfor %}
+  </select>
+
+<input type=submit value="Process">
+</form>
+
+{% endblock content %}

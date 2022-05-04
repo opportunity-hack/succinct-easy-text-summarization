@@ -1,0 +1,129 @@
+{%- extends "base.html" %}
+{% import "bootstrap/utils.html" as utils %}
+{% block title %}Text Summary{% endblock title %}
+
+
+{% block content %}
+<div class="container">
+  <h2>Summarization Results</h2>
+  <b>File processed:</b> {{ file_to_process }}
+
+  <h3>First lines of file</h3>
+
+  <pre>
+  {{ first_three_lines }}
+  </pre>
+
+  <h4>Select a column to process</h4>
+  <form action="{{ url_for('.summarize') }}" method=POST enctype=multipart/form-data>
+    <input type="hidden" name="file_to_process" value="{{file_to_process}}"/>
+
+    Perform Text Analysis on column: <select name="column_to_process">
+    {% for c in column_names %}
+        {% if selected_column_name == c %}
+          <option value="{{ c }}" selected>{{ c }}</option>
+        {% else %}
+          <option value="{{ c }}">{{ c }}</option>
+        {% endif %}
+    {% endfor %}
+    </select>
+
+  <h4>Optional Stuff</h4>
+  <h5 class="text-muted">These filters below don't need to be touched unless you're trying to tweak something</h5>
+
+  <div style="margin-top:10px">
+  Filter using column: <select name="column_to_filter">
+  {% for c in column_names %}
+      {% if column_to_filter == c %}
+        <option value="{{ c }}" selected>{{ c }}</option>
+      {% else %}
+        <option value="{{ c }}">{{ c }}</option>
+      {% endif %}
+  {% endfor %}
+  </select>
+  Filter Text: <input type="text" name="filter_text" value="{{filter_text}}"/>
+  </div>
+
+  <div style="margin-top:10px">
+  N-Gram Range from <select name="ngram_start">
+    {% for i in [1,2,3,4] %}
+    <option value="{{i}}" {% if i==ngram_start %} selected{%endif%}>{{i}}</option>
+    {% endfor %}
+    </select> to <select name="ngram_end">
+      {% for i in [1,2,3,4,5] %}
+      <option value="{{i}}" {% if i==ngram_end %} selected{%endif%}>{{i}}</option>
+      {% endfor %}
+      </select> (typically this is 2 to 3 which will give you 2-word "the cat" groups to 3-word groups "the cat ate")
+  </div>
+
+  <div style="margin-top:10px">
+  Min-DF (0.0025): <input type="text" name="min_df" value="{{min_df}}"/>
+  <blockquote cite="https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html">
+    When building the vocabulary ignore terms that have a document frequency strictly lower than the given threshold. This value is also called cut-off in the literature. If float, the parameter represents a proportion of documents, integer absolute counts. This parameter is ignored if vocabulary is not None.
+  </blockquote>
+
+  <br/>
+  Max-DF (1.0): <input type="text" name="max_df" value="{{max_df}}"/>
+  <blockquote cite="https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html">
+    When building the vocabulary ignore terms that have a document frequency strictly higher than the given threshold (corpus-specific stop words). If float, the parameter represents a proportion of documents, integer absolute counts. This parameter is ignored if vocabulary is not None.
+  </blockquote>
+  </div>
+
+  <div style="margin-top:10px;margin-bottom:10px">
+  <input type=submit value="Process">
+  </div>
+  </form>
+
+
+  {% if sparsity %}
+
+  <h3>General Stats</h3>
+  <ul>
+  <li>Total Rows: {{num_rows}}</li>
+  <li>Number of N-Grams: {{ num_ngrams }} (e.g. words, letters) <a href="https://en.wikipedia.org/wiki/N-gram" target=_blank>Wikipedia</a></li>
+  <li>Sparsity: {{ '%.2lf' % sparsity }} (The sparsity of this representation lets us know how many non-zero values there are in the dataset. The more sparse the data is the more challenging it will be to model.)</li>
+  </ul>
+
+  <div class="col-md-6">
+  <h3>Common Terms</h3>
+  <blockquote cite="https://www.quora.com/What-is-the-difference-between-TfidfVectorizer-and-CountVectorizer-1">
+    Simple term frequency
+  </blockquote>
+  <pre>
+  {{ common_terms }}
+  </pre>
+  </div>
+
+  <div class="col-md-6">
+  <h3>TF-IDF (Term Frequency Inverse Document Frequency) Results</h3>
+  <blockquote cite="https://www.quora.com/What-is-the-difference-between-TfidfVectorizer-and-CountVectorizer-1">
+    With the TFIDFVectorizer the value increases proportionally to count, but is offset by the frequency of the word in the corpus. - This is the IDF (inverse document frequency part).
+    This helps to adjust for the fact that some words appear more frequently.
+  </blockquote>
+  <pre>
+    {{ tf_idf_results }}
+  </pre>
+  </div>
+
+  <div style="margin-top:10px">
+  <img src="data:image/png;base64, {{ tfidf_plot }}" />
+  </div>
+
+  <div style="margin-top:10px">
+  <img src="data:image/png;base64, {{ term_plot }}" />
+  </div>
+
+  <h4>Term Examples</h4>
+    {% for key,val in term_examples.items() %}
+    <b>{{key}}</b>
+    <ul>
+      {% for v in val %}
+        <li>{{v}}</li>
+      {% endfor %}
+    </ul>
+
+    {% endfor %}
+
+  {% endif %}
+</div>
+{% endblock content %}
