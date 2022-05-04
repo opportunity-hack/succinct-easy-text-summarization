@@ -20,6 +20,13 @@ docker build -t succinct-python .
 docker run -d -p 5000:5000 -v /var/uploads/:/tmp/succint_upload/ succinct-python
 ```
 
+
+## Running the Huey Consumer
+To process tasks that are long running, we use Huey
+```
+python ~/opt/miniconda3/bin/huey_consumer.py --verbose app.tasks.get_similar.huey
+```
+
 # References
 These sources were helpful to get everything up and running
 - https://github.com/mbr/flask-bootstrap/tree/master/sample_app

@@ -5,9 +5,10 @@
 # You can find out more about blueprints at
 # http://flask.pocoo.org/docs/blueprints/
 
-from flask import Blueprint, render_template, flash, redirect, url_for, request, current_app
+from flask import Blueprint, render_template, flash, redirect, url_for, request, current_app, jsonify, json
 from flask_uploads import (UploadSet, configure_uploads, DATA,
                               UploadNotAllowed)
+import statistics
 
 import uuid
 
@@ -23,6 +24,9 @@ from .nav import nav
 from .text_summarization import text_summarization
 import pandas as pd
 import csv, sys
+
+from collections import OrderedDict
+from .tasks.get_similar import find_similar, similar_cache, similar_cache_by_request_hash
 
 csv.field_size_limit(sys.maxsize)
 
@@ -136,6 +140,156 @@ def list_files():
         return render_template('error.html', error="No file has been uploaded yet.")
 
 
+# Get tags for a given body of text based on common topics
+# Each new subject/topic should be on a separate line
+# Corpus {
+#   This is one topic and body of text about grapes and apples
+#   This is another topic and body of text about apples and pears
+#   This is yet another topic and body of text about cake and pears
+#}
+@frontend.route('/topics/', methods=['POST'])
+def get_topics_api():
+    corpus = request.form.get('corpus')
+    print("Incoming Text Corpus:\n===========\n",corpus,"\n===========")
+
+    result = []
+    for key,val in get_topics(corpus):
+        print(key,val)
+        result.append(val)
+
+    #json_response = json.dumps(topics)
+    return jsonify(result)
+
+def get_topics(corpus):
+    t = text_summarization()
+
+    text_data = []
+    for line in corpus.split("\n"):
+        tokens = t.prepare_text_for_lda(line)
+        text_data.append(tokens)
+
+    topics = t.get_topics(text_data)
+    print(topics)
+    return topics
+
+
+@frontend.route('/tags/', methods=['POST'])
+def get_tags_api():
+    corpus = request.form.get('corpus')
+    print("Incoming Text Corpus:\n===========\n",corpus,"\n===========")
+    return jsonify(get_tags(corpus))
+
+
+def get_tags(corpus):
+    t = text_summarization()
+
+    all_tags = []
+    result_tags = OrderedDict()
+    for line in corpus.split("\n"):
+        tags = t.get_tags(line) # Get tags from each line of text
+        all_tags.append(tags)
+        result_tags[line] = tags
+
+    #print(all_tags)
+    most_common_words = t.get_common_words(all_tags)
+    print("Most common:", most_common_words)
+    all_tags_from_complete_corpus = t.get_tags(corpus)
+
+    print("Corpus Tags:", all_tags_from_complete_corpus)
+    return result_tags, most_common_words, all_tags_from_complete_corpus
+
+
+
+@frontend.route('/similar/', methods=['POST'])
+def get_similar_api():
+    print("/similar was called")
+    corpus = request.form.get('corpus')
+    request_hash = request.form.get('request_hash')
+    if corpus:
+        print(f"Incoming Text Corpus:\n===========\n{corpus}\n===========")
+        return jsonify(get_similar(corpus))
+
+    elif request_hash:
+        print(f"Incoming Request Hash:\n===========\n{request_hash}\n===========")
+        return jsonify(get_similar(corpus,request_hash))
+    else:
+        return ""
+
+
+
+def get_similar(corpus, request_hash=None):
+    print(corpus)
+    # Since this can take awhile...
+    # Use Huey (Celery would have worked but was more complicated)
+    #  Spawn a task
+    #  Respond with task_id, pass that to Javascript code
+    #  Cache: If hash of strings is already stored, use that
+    #  Javascript code in template should call endpoint every 3 seconds
+    #  Task should generate result file
+
+
+
+    result_matrix_cache = None
+    if request_hash:
+        print("Request was for hash, checking cache")
+        result_matrix_cache, corpus_cache = similar_cache_by_request_hash(request_hash)
+        print(result_matrix_cache, "|", corpus_cache)
+        if corpus_cache != None:
+            corpus = corpus_cache
+        else:
+            print("No cache for hash, so returning")
+            return
+
+    print(corpus)
+
+    # This is used to join up our similar results later
+    original_data = []
+    for line in corpus.split("\n"):
+        original_data.append(line)
+
+    if not result_matrix_cache:
+        # We want our results to be in order
+        num_items = len(original_data)
+        print(f"Getting similar matches for all {num_items} items...")
+        result_matrix_cache, request_hash = similar_cache(corpus)
+
+    result_similar = OrderedDict()
+    if result_matrix_cache:
+        print("Cache hit, using previous task result")
+        for i in range(0,len(original_data)):
+            key = original_data[i]
+            matches = []
+
+            match_percent_tracker = []
+            for j in range(0,len(original_data)):
+                if i != j and j<20: # Take the top 20
+                    print(j,"->",result_matrix_cache[i][j])
+                    match_percent = float(result_matrix_cache[i][j])
+                    match_percent_tracker.append(match_percent)
+                    res = (match_percent,original_data[j])
+                    matches.append(res)
+            # Sort by the highest similarity score
+            if len(match_percent_tracker) > 1:
+                avg_match = statistics.mean(match_percent_tracker)
+            else:
+                avg_match = 0
+
+            key = f"{avg_match*100:.2f} {key}"
+            result_similar[key] = sorted(matches, key=lambda x: x[0], reverse=True)
+
+        print("Result ->",result_similar)
+        return result_similar
+    else:
+        print("No cache hit, processing as a new task")
+        task_result = find_similar(corpus)
+        print("Got task result: %s" % task_result)
+        return {
+            "async":True,
+            "request_hash": request_hash,
+            "result":"Similarity task queued for processing: %s" % task_result.id}
+
+
+
 @frontend.route('/summarize/', methods=['POST'])
 def summarize():
     file_dir = current_app.config["UPLOADED_FILES_DEST"]
@@ -175,7 +329,8 @@ def summarize():
                 max_df=t.max_df)
     else:
         csv_data = pd.read_csv(full_path, engine='python')
-        if filter_text != "" and column_to_filter!="":
+
+        if filter_text != "" and column_to_filter != "":
             csv_data = csv_data.loc[csv_data[column_to_filter].astype(str) == str(filter_text)]
 
         number_of_rows = len(csv_data.index)
@@ -183,6 +338,23 @@ def summarize():
         stats = t.get_text_stats(column_to_process, csv_data)
         print(stats)
 
+
+        print("-=============-")
+        print("Dropping NAs")
+        selected_data = csv_data[column_to_process].dropna()
+        #print(selected_data)
+        selected_data_as_list = list(selected_data.values)
+        #print(selected_data_as_list)
+        corpus = "\n".join(selected_data_as_list)
+        #print(corpus)
+        print("Getting similar strings...")
+        similar = get_similar(corpus)
+
+        print("Getting tags...")
+        tags,common_tags,all_tags_from_complete_corpus = get_tags(corpus)
+        print(tags)
+
+        print("Rendering...")
         return render_template('summarize.html',
                 file_to_process=file_to_process,
                 first_three_lines=first_three_lines,
@@ -201,7 +373,11 @@ def summarize():
                 ngram_start=t.ngram_start,
                 ngram_end=t.ngram_end,
                 min_df=t.min_df,
-                max_df=t.max_df)
+                max_df=t.max_df,
+                similar_items=similar,
+                tags=tags,
+                common_tags=common_tags,
+                most_important_tags=all_tags_from_complete_corpus)
 
 
 # Shows a long signup form, demonstrating form rendering.
