@@ -1,0 +1,36 @@
+# This is used to run Huey Tasks
+#
+FROM ubuntu:18.04
+RUN apt-get update && apt-get install -y \
+        software-properties-common
+RUN add-apt-repository ppa:deadsnakes/ppa
+RUN apt-get update && apt-get install -y \
+    python3.7 \
+    python3-pip
+RUN python3.7 -m pip install pip
+RUN apt-get update && apt-get install -y \
+    python3-distutils \
+    python3-setuptools
+RUN python3.7 -m pip install pip --upgrade pip
+RUN apt-get install -y python3.7-dev
+RUN apt-get install -y bash
+
+COPY app/ /app
+WORKDIR /app
+# RUN pip3 install -r huey-requirements.txt
+RUN pip3 install huey
+RUN pip3 install redis
+RUN pip3 install sklearn
+RUN pip3 install numpy
+RUN pip3 install pandas
+RUN pip3 install nltk
+RUN pip3 install seaborn
+RUN pip3 install spacy
+
+
+
+COPY run_app.py /
+WORKDIR /
+ENTRYPOINT ["python3.7"]
+CMD ["/opt/miniconda3/bin/huey_consumer.py","--verbose","app.tasks.get_similar.huey"]
+#  python3.7 /usr/local/bin/huey_consumer.py --verbose app.tasks.get_similar.huey

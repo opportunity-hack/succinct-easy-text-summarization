@@ -1,7 +1,10 @@
 {%- extends "base.html" %}
 {% import "bootstrap/utils.html" as utils %}
 {% block title %}Text Summary{% endblock title %}
-
+{% block scripts %}
+  {{super()}}
+   <script src="{{ url_for('static', filename='api.js') }}"></script>
+{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -113,17 +116,98 @@
   <img src="data:image/png;base64, {{ term_plot }}" />
   </div>
 
-  <h4>Term Examples</h4>
-    {% for key,val in term_examples.items() %}
-    <b>{{key}}</b>
-    <ul>
-      {% for v in val %}
-        <li>{{v}}</li>
-      {% endfor %}
-    </ul>
+  <div class="row">
+  <div class="col-md-6">
+  <h3>Most important tags</h3>
+  <i>These tags are ranked as most important within the entire text.</i><br>
+  <ol>
+  {% for tag,rank in most_important_tags %}
+      <li>{{'%.2lf'|format(rank)}} {{tag}}</li>
+  {% endfor %}
+  </ol>
+  </div>
 
+  <div class="col-md-6">
+  <h3>Most common word</h3>
+  <i>Looking through all of the tags, these single words were the most common.</i>
+  <ol>
+    {% for tag,count in common_tags %}
+      <li><b>{{tag}}</b> {{count}}</li>
     {% endfor %}
+  </ol>
+  </div>
+  </div>
+
+  <div class="row">
+  <div class="col-md-6">
+  <h3>Specific Tags</h3>
+  <i>For each line provided, these are the most important tags.</i>
+  <br>
+  {% for key,val in tags.items() %}
+  <b>{{key}}</b>
+  <ol>
+    {% for tags,rank in val %}
+      <li>{{'%.2lf'|format(rank)}} {{tags}}</li>
+    {% endfor %}
+  </ol>
+  {% endfor %}
+  </div>
+
+  <div class="col-md-6">
+  <h3>Similarity</h3>
+  <i>For each line provided, we list the most similar matches</i>
+  <br>
+  {% if similar_items.async %}
+    <span id="request_hash" value="{{similar_items.request_hash}}"></span>
+    <div id="request_spinner">
+    Waiting for results.  Refresh in about 60 seconds.
+    <img src="{{ url_for('static', filename='beachball.gif') }}" width="50px">
+    </div>
+
+    {% else %}
+      {% for key,val in similar_items.items() %}
+      <b>{{key}}</b>
+      <ol>
+        {% set printed = 0 %}
+        {% for match_percent,term in val %}
+          {% if match_percent >= 0.10 %}
+            {% if match_percent >= 0.35 %}
+            {% set printed = 1 %}
+            <li><font size="4" color="#FF5733"><b>{{'%.2lf'|format(match_percent*100)}}%</b> {{term}}</font></li>
+            {% elif match_percent >= 0.25 %}
+            {% set printed = 1 %}
+            <li><font size="3" color="#FFBD33"><b>{{'%.2lf'|format(match_percent*100)}}%</b> {{term}}</font></li>
+            {% else %}
+            {% set printed = 1 %}
+            <li><b>{{'%.2lf'|format(match_percent*100)}}%</b> {{term}}</li>
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {% if printed == 0 %}
+        No significant matches - this could be a unique idea/thought/sentence.
+        {% endif %}
+      </ol>
+      {% endfor %}
+  {% endif %}
+  </div>
+  </div>
+
+
+  <div class="col-md-12">
+  <h3>Term Examples</h3>
+  <i>In the above charts, we use stemming which truncates some words, so below we list out the full sentences to provide more context.</i>
+  <br>
+  {% for key,val in term_examples.items() %}
+  <b>{{key}}</b>
+  <ul>
+    {% for v in val %}
+      <li>{{v}}</li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+  </div>
 
   {% endif %}
+
 </div>
 {% endblock content %}

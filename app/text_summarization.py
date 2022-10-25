@@ -12,6 +12,43 @@ from itertools import islice
 import seaborn as sns
 import base64
 import matplotlib.pyplot as plt
+import re
+import nltk
+from nltk.corpus import wordnet as wn
+import gensim
+from gensim import corpora
+from gensim.models import CoherenceModel, LdaModel, LsiModel, HdpModel
+import pickle
+from nltk.stem.wordnet import WordNetLemmatizer
+from collections import Counter
+import time
+import spacy
+import pytextrank
+
+import matplotlib
+matplotlib.use('Agg')
+
+
+
+
+# load a spaCy model, depending on language, scale, etc.
+nlp = spacy.load("en_core_web_sm")
+# add PyTextRank to the spaCy pipeline
+# https://towardsdatascience.com/textrank-for-keyword-extraction-by-python-c0bae21bcec0
+nlp.add_pipe("textrank") #not using positionrank because position likely doesn't matter in this context for our app
+
+
+print("Downloading wordnet")
+start_time = time.time()
+nltk.download('wordnet')
+exec_time = time.time()-start_time
+print(f"{exec_time}")
+
+print("Downloading stopwords")
+start_time = time.time()
+nltk.download('stopwords')
+exec_time = time.time()-start_time
+print(f"{exec_time}")
 
 
 class text_summarization:
@@ -29,11 +66,105 @@ class text_summarization:
     min_df = float()
     max_df = float()
 
+
+    en_stop = set(nltk.corpus.stopwords.words('english'))
+
     def smart_truncate(self, content, length=140, suffix='...'):
         if len(content) <= length:
             return content
         else:
             return ' '.join(content[:length+1].split(' ')[0:-1]) + suffix
+
+    def clean_spaces(self, strval):
+        strval = strval.replace("\n", " ").replace("\t", " ")
+        strval = re.sub("\s\s+", " ", strval)
+        return strval
+
+
+    def tokenize(self, cleaned_string):
+        import spacy
+        #spacy.load('en')
+        from spacy.lang.en import English
+        parser = English()
+        lda_tokens = []
+        tokens = parser(cleaned_string)
+
+        for token in tokens:
+            if token.orth_.isspace():
+                continue
+            if token.orth_.isnumeric():
+                continue
+            elif token.like_url:
+                lda_tokens.append('URL')
+            elif token.orth_.startswith('@'):
+                lda_tokens.append('SCREEN_NAME')
+            else:
+                lowercase = token.lower_
+                lowercase = lowercase.replace("'","")
+                lda_tokens.append(lowercase)
+        return lda_tokens
+
+
+    def get_lemma(self, word):
+        lemma = wn.morphy(word)
+        if lemma is None:
+            return word
+        else:
+            return lemma
+
+    from nltk.stem.wordnet import WordNetLemmatizer
+    def get_lemma2(self, word):
+        return WordNetLemmatizer().lemmatize(word)
+
+    def prepare_text_for_lda(self, text):
+        tokens = self.tokenize(text)
+        tokens = [token for token in tokens if len(token) > 1]
+        tokens = [token for token in tokens if token not in self.en_stop]
+        tokens = [self.get_lemma(token) for token in tokens]
+        return tokens
+
+
+    def get_common_words(self, word_nested_list):
+
+        flat_list = [item[0] for sublist in word_nested_list for item in sublist]
+        print("Flat",flat_list)
+        long_string = " ".join(flat_list)
+        all_words = long_string.split(" ")
+        all_words = [token for token in all_words if token not in self.en_stop]
+        all_words = [token for token in all_words if len(token) > 1]
+        all_words_lowercase = (map(lambda x: x.lower(), all_words))
+        word_counter = Counter(all_words_lowercase)
+        most_common_words = word_counter.most_common(20)
+        return most_common_words
+
+
+
+
+    def get_tags(self, text):
+        doc = nlp(text)
+
+        tags = []
+        for phrase in doc._.phrases[:20]:
+            print("Text:",phrase.text)
+            print(" Rank",phrase.rank, "Count:",phrase.count)
+            print(" Chunks",phrase.chunks)
+            if phrase.rank >= 0.05:
+                tags.append( (phrase.text,phrase.rank) )
+        return tags
+
+    # https://www.tutorialspoint.com/gensim/gensim_creating_lsi_and_hdp_topic_model.htm
+    # https://colab.research.google.com/github/explosion/spacy-notebooks/blob/master/notebooks/conference_notebooks/pydays/topic_modelling.ipynb#scrollTo=g-EyYC0KJ-Nx
+    def get_topics(self, text_data):
+        print(text_data)
+        dictionary = corpora.Dictionary(text_data)
+        corpus = [dictionary.doc2bow(text) for text in text_data]
+
+        # HDP, the Hierarchical Drichlet Process is an unsupervised topic model which figures out the number of topics on it's own.
+        hdpmodel = HdpModel(corpus=corpus, id2word=dictionary)
+
+        topics = hdpmodel.show_topics(num_words=5, log=False, formatted=False)
+        #hdptopics = [[word for word, prob in topic] for topicid, topic in hdpmodel.show_topics(formatted=False)]
+        return topics
 
     def normalize_text(self, pd_series):
         pd_series.replace('\n',' ',inplace=True,regex=True)
