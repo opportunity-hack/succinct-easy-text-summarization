@@ -24,6 +24,13 @@ from collections import Counter
 import time
 import spacy
 import pytextrank
+
+import matplotlib
+matplotlib.use('Agg')
+
+
+
+
 # load a spaCy model, depending on language, scale, etc.
 nlp = spacy.load("en_core_web_sm")
 # add PyTextRank to the spaCy pipeline

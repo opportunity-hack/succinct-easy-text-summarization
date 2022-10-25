@@ -19,7 +19,6 @@ from markupsafe import escape
 from os import listdir
 from os.path import isfile, join, exists
 
-from .forms import SignupForm
 from .nav import nav
 from .text_summarization import text_summarization
 import pandas as pd
@@ -181,6 +180,7 @@ def get_tags_api():
 
 
 def get_tags(corpus):
+    corpus = corpus.lower()
     t = text_summarization()
 
     all_tags = []
@@ -378,23 +378,3 @@ def summarize():
                 tags=tags,
                 common_tags=common_tags,
                 most_important_tags=all_tags_from_complete_corpus)
-
-
-# Shows a long signup form, demonstrating form rendering.
-@frontend.route('/example-form/', methods=('GET', 'POST'))
-def example_form():
-    form = SignupForm()
-
-    if form.validate_on_submit():
-        # We don't have anything fancy in our application, so we are just
-        # flashing a message when a user completes the form successfully.
-        #
-        # Note that the default flashed messages rendering allows HTML, so
-        # we need to escape things if we input user values:
-        flash('Hello, {}. You have successfully signed up'
-              .format(escape(form.name.data)))
-
-        # In a real application, you may wish to avoid this tedious redirect.
-        return redirect(url_for('.index'))
-
-    return render_template('signup.html', form=form)

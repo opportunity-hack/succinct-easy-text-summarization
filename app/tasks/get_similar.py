@@ -4,6 +4,10 @@ path = str(pathlib.Path(__file__).parent.resolve()) + "/%s" % "storage"
 print(path)
 huey = FileHuey(path=path)
 
+import nltk
+nltk.download('omw-1.4')
+
+
 from ..text_summarization import text_summarization
 from gensim.corpora import Dictionary
 from gensim.models import TfidfModel

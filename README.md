@@ -11,13 +11,14 @@ To make this even simpler for non-technologists, this project should also consid
 ### Without Docker
 ```
 pip install -r requirements.txt
+python -m spacy download en
 python run_app.py
 ```
 
 ### Docker
 ```
 docker build -t succinct-python .
-docker run -d -p 5000:5000 -v /var/uploads/:/tmp/succint_upload/ succinct-python
+docker run -d -p 4040:4040 -v /var/uploads/:/tmp/succint_upload/ succinct-python
 ```
 
 
