@@ -10,6 +10,7 @@ To make this even simpler for non-technologists, this project should also consid
 ## Running the app
 ### Without Docker
 ```
+sudo xcodebuild -license # Needed for Mac since you need GCC due to Cython
 pip install -r requirements.txt
 python -m spacy download en
 python run_app.py
